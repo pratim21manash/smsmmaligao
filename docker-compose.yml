@@ -1,0 +1,51 @@
+services:
+  frontend:
+    build:
+      context: ./maligaon-main
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./admin-backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./admin-backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: ${CLIENT_URL:?Set CLIENT_URL in the root .env file}
+      MONGODB_URI: mongodb://root:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in the root .env file}@mongodb:27017/smsml?authSource=admin
+    volumes:
+      - uploads_data:/app/uploads
+    expose:
+      - "5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in the root .env file}
+      MONGO_INITDB_DATABASE: smsml
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username root --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  uploads_data:
